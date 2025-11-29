@@ -88,6 +88,68 @@ theme:
 | `theme.background_color` | string | Auto | Card background color |
 | `theme.text_color` | string | Auto | Card title text color |
 
+## Theming Examples
+
+The card supports extensive theming and customization options. Here are three different styling examples:
+
+![Theming Examples](docs/image.png)
+
+### Blue Theme with Gusts
+```yaml
+type: custom:wind-barb-card
+name: Weather Station Wind Meteogram
+wind_direction_entity: sensor.gw2000b_wind_direction
+wind_speed_entity: sensor.gw2000b_wind_speed
+wind_gust_entity: sensor.gw2000b_wind_gust
+time_period: 24
+units: mph
+barb_size: 40
+graph_height: 300
+theme:
+  primary_color: '#0d47a1'
+  secondary_color: '#37474f'
+  background_color: '#e3f2fd'
+  text_color: '#1a237e'
+```
+
+### Orange Theme (Minimal)
+```yaml
+type: custom:wind-barb-card
+name: Wind Meteogram
+wind_direction_entity: sensor.gw2000b_wind_direction
+wind_speed_entity: sensor.gw2000b_wind_speed
+theme:
+  primary_color: '#d84315'
+  secondary_color: '#8e24aa'
+  background_color: '#fff3e0'
+  text_color: '#bf360c'
+```
+
+### Green Theme (Custom Styling)
+```yaml
+type: custom:wind-barb-card
+name: Weather Station Wind Meteogram
+wind_direction_entity: sensor.gw2000b_wind_direction
+wind_speed_entity: sensor.gw2000b_wind_speed
+wind_gust_entity: sensor.gw2000b_wind_gust
+time_period: 24
+show_legend: false
+show_y_axis_label: true
+units: knots
+barb_size: 40
+graph_height: 300
+barb_stem_length: 30
+barb_flag_length: 10
+barb_line_width: 1
+graph_line_width: 1
+time_format: '12'
+theme:
+  primary_color: '#2e7d32'
+  secondary_color: '#bf360c'
+  background_color: '#f1f8e9'
+  text_color: '#1b5e20'
+```
+
 ## Wind Speed Units
 
 The card automatically detects and converts between different wind speed units:
