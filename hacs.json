@@ -1,0 +1,8 @@
+{
+  "name": "Wind Barb Card",
+  "content_in_root": false,
+  "filename": "wind-barb-card.js",
+  "render_readme": true,
+  "domains": ["sensor"],
+  "iot_class": "Local Polling"
+}

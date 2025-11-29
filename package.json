@@ -1,0 +1,45 @@
+{
+  "name": "lovelace-wind-barb-card",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Home Assistant Lovelace card for displaying wind data with meteorological barbs and time-series graphs",
+  "main": "dist/wind-barb-card.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dgm/lovelace-wind-barb-card.git"
+  },
+  "homepage": "https://github.com/dgm/lovelace-wind-barb-card",
+  "bugs": {
+    "url": "https://github.com/dgm/lovelace-wind-barb-card/issues"
+  },
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": ["home-assistant", "lovelace", "custom-card", "wind", "weather"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.5",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "eslint": "^8.54.0",
+    "rollup": "^4.6.1",
+    "@rollup/plugin-terser": "^0.4.4",
+    "typescript": "^5.3.2",
+    "tslib": "^2.6.2"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "date-fns": "^2.30.0",
+    "lit": "^3.1.0"
+  }
+}

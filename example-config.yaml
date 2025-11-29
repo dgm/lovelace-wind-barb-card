@@ -1,0 +1,49 @@
+# Example Lovelace card configuration for Wind Barb Card
+
+# Basic configuration
+- type: custom:wind-barb-card
+  name: "Wind Conditions"
+  wind_direction_entity: sensor.wind_direction
+  wind_speed_entity: sensor.wind_speed
+
+# Full configuration with all options (mph units)
+- type: custom:wind-barb-card
+  name: "Weather Station Wind Data"
+  wind_direction_entity: sensor.weather_station_wind_direction
+  wind_speed_entity: sensor.weather_station_wind_speed
+  wind_gust_entity: sensor.weather_station_wind_gust
+  time_period: 48
+  units: "mph"
+  show_barbs: true
+  show_graph: true
+  barb_size: 50
+  graph_height: 400
+  theme:
+    primary_color: "#2196F3"
+    secondary_color: "#FF5722"
+    background_color: "#FAFAFA"
+
+# Metric units example
+- type: custom:wind-barb-card
+  name: "Wind (Metric)"
+  wind_direction_entity: sensor.wind_direction
+  wind_speed_entity: sensor.wind_speed
+  units: "kph"
+
+# Wind barb timeline view
+- type: custom:wind-barb-card
+  name: "Wind Barb Timeline"
+  wind_direction_entity: sensor.wind_direction
+  wind_speed_entity: sensor.wind_speed
+  units: "mph"
+  barb_timeline: true
+  show_barbs: false  # Hide current conditions barb
+  graph_height: 400
+
+# Minimal configuration (barbs only)
+- type: custom:wind-barb-card
+  name: "Current Wind"
+  wind_direction_entity: sensor.wind_direction
+  wind_speed_entity: sensor.wind_speed
+  show_graph: false
+  time_period: 1
