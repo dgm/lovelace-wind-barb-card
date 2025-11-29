@@ -12,7 +12,16 @@ export class WindBarbChart extends LitElement {
   @property({ type: Array }) windData: WindData[] = [];
   @property({ type: Number }) height = 300;
   @property({ type: String }) primaryColor = '#1976d2';
+  @property({ type: String }) secondaryColor = '#ff9800';
   @property({ type: String }) units = 'm/s';
+  @property({ type: Number }) barbStemLength = 25;
+  @property({ type: Number }) barbFlagLength = 12;
+  @property({ type: Number }) barbLineWidth = 2;
+  @property({ type: Number }) graphLineWidth = 2;
+  @property({ type: String }) timeFormat = '24';
+  @property({ type: Boolean }) showLegend = true;
+  @property({ type: Boolean }) showYAxisLabel = false;
+  @property({ type: Boolean }) hasGustEntity = false;
 
   @state() private chart?: Chart;
 
@@ -32,6 +41,25 @@ export class WindBarbChart extends LitElement {
     canvas {
       width: 100% !important;
       height: 100% !important;
+    }
+
+    /* Custom legend styling */
+    :host ::ng-deep .chartjs-legend ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      gap: 8px;
+    }
+
+    :host ::ng-deep .chartjs-legend li {
+      display: flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 4px;
+      color: white;
+      font-size: 12px;
+      font-weight: 500;
     }
   `;
 
@@ -79,6 +107,53 @@ export class WindBarbChart extends LitElement {
       }
     };
 
+    const customLegendPlugin = {
+      id: 'customLegend',
+      beforeDraw: (chart: Chart) => {
+        const ctx = chart.ctx;
+        const datasets = chart.data.datasets;
+        
+        ctx.save();
+        
+        // Calculate total width needed for all legend items
+        ctx.font = '11px sans-serif';
+        let totalWidth = 0;
+        const rectWidths: number[] = [];
+        
+        datasets.forEach((dataset) => {
+          if (!dataset.label) return;
+          const textWidth = ctx.measureText(dataset.label).width;
+          const rectWidth = textWidth + 12;
+          rectWidths.push(rectWidth);
+          totalWidth += rectWidth;
+        });
+        totalWidth += (rectWidths.length - 1) * 10; // Add gaps
+        
+        // Start from right side
+        let x = chart.width - totalWidth - 10;
+        const y = 15;
+        
+        datasets.forEach((dataset, index) => {
+          if (!dataset.label) return;
+          
+          const rectWidth = rectWidths[index];
+          
+          // Draw colored background rectangle
+          ctx.fillStyle = dataset.borderColor as string;
+          ctx.fillRect(x, y - 10, rectWidth, 16);
+          
+          // Draw white text
+          ctx.fillStyle = 'white';
+          ctx.textAlign = 'center';
+          ctx.fillText(dataset.label, x + rectWidth/2, y + 2);
+          
+          x += rectWidth + 10; // Move to next legend item with gap
+        });
+        
+        ctx.restore();
+      }
+    };
+
     const config: ChartConfiguration = {
       type: 'line',
       data: {
@@ -86,27 +161,33 @@ export class WindBarbChart extends LitElement {
         datasets: [{
           label: `Wind Speed (${this.units})`,
           data: [],
-          borderColor: '#8e24aa', // Purple like NWS
-          backgroundColor: '#8e24aa20',
+          borderColor: this.primaryColor,
+          backgroundColor: this.primaryColor + '20',
+          borderWidth: this.graphLineWidth,
           tension: 0.1,
           pointRadius: 0,
           pointHoverRadius: 0,
           order: 2 // Behind barbs
-        }, {
+        }, ...(this.hasGustEntity ? [{
           label: `Wind Gusts (${this.units})`,
           data: [],
-          borderColor: '#ff4444',
-          backgroundColor: '#ff444420',
+          borderColor: this.secondaryColor,
+          backgroundColor: this.secondaryColor + '20',
+          borderWidth: this.graphLineWidth,
           tension: 0.1,
           pointRadius: 3,
           pointHoverRadius: 5,
           order: 1 // Above wind speed line
-        }]
+        }] : [])]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-
+        layout: {
+          padding: {
+            top: this.showLegend ? 30 : 10 // Add space for legend if shown
+          }
+        },
         interaction: {
           intersect: false,
           mode: 'index'
@@ -117,10 +198,10 @@ export class WindBarbChart extends LitElement {
             time: {
               unit: 'hour',
               displayFormats: {
-                hour: 'HH:mm',
+                hour: (this.timeFormat === '12' || this.timeFormat === 12) ? 'h:mm a' : 'HH:mm',
                 day: 'MMM dd'
               },
-              tooltipFormat: 'MMM dd HH:mm'
+              tooltipFormat: (this.timeFormat === '12' || this.timeFormat === 12) ? 'MMM dd h:mm a' : 'MMM dd HH:mm'
             },
             grid: {
               color: 'rgba(0,0,0,0.1)'
@@ -131,7 +212,7 @@ export class WindBarbChart extends LitElement {
           },
           y: {
             title: {
-              display: true,
+              display: this.showYAxisLabel,
               text: `Wind Speed (${this.units})`
             },
             grid: {
@@ -143,7 +224,7 @@ export class WindBarbChart extends LitElement {
         },
         plugins: {
           legend: {
-            position: 'top'
+            display: false // Hide default legend
           },
           tooltip: {
             callbacks: {
@@ -163,7 +244,7 @@ export class WindBarbChart extends LitElement {
           }
         }
       },
-      plugins: [windBarbPlugin]
+      plugins: [windBarbPlugin, ...(this.showLegend ? [customLegendPlugin] : [])]
     };
 
     this.chart = new Chart(canvas, config);
@@ -186,16 +267,15 @@ export class WindBarbChart extends LitElement {
     ctx.rotate(rotationRadians);
     
     // Draw stem
-    const stemLength = 25;
     ctx.strokeStyle = '#2e7d32';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = this.barbLineWidth;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(0, -stemLength);
+    ctx.lineTo(0, -this.barbStemLength);
     ctx.stroke();
     
     // Draw flags at stem top
-    ctx.translate(0, -stemLength);
+    ctx.translate(0, -this.barbStemLength);
     const speedKnots = speed * 1.944;
     this.drawBarbFlags(ctx, speedKnots);
     ctx.restore();
@@ -211,34 +291,33 @@ export class WindBarbChart extends LitElement {
       ctx.fillStyle = barbColor;
       ctx.beginPath();
       ctx.moveTo(0, yOffset);
-      ctx.lineTo(12, yOffset); // Extend perpendicular to rotated stem
+      ctx.lineTo(this.barbFlagLength, yOffset);
       ctx.lineTo(0, yOffset + 6);
       ctx.closePath();
       ctx.fill();
       remainingSpeed -= 50;
-      yOffset += 7; // Move down stem for next flag
-      
+      yOffset += 7;
     }
     
     // 10-knot flags
     while (remainingSpeed >= 10) {
       ctx.strokeStyle = barbColor;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = this.barbLineWidth;
       ctx.beginPath();
       ctx.moveTo(0, yOffset);
-      ctx.lineTo(12, yOffset); // Extend perpendicular to rotated stem
+      ctx.lineTo(this.barbFlagLength, yOffset);
       ctx.stroke();
       remainingSpeed -= 10;
-      yOffset += 4; // Move down stem for next flag
+      yOffset += 4;
     }
     
     // 5-knot half-barbs
     if (remainingSpeed >= 5) {
       ctx.strokeStyle = barbColor;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = this.barbLineWidth;
       ctx.beginPath();
       ctx.moveTo(0, yOffset);
-      ctx.lineTo(6, yOffset); // Extend perpendicular to rotated stem
+      ctx.lineTo(this.barbFlagLength / 2, yOffset);
       ctx.stroke();
     }
   }
@@ -249,20 +328,23 @@ export class WindBarbChart extends LitElement {
     const labels = this.windData.map(d => d.timestamp);
     const speedData = this.windData.map(d => d.speed);
     
-    // Only show gusts when significantly higher than wind speed
+    // Only show gusts when ≥10 knots higher than sustained winds (meteorological standard)
     const gustData = this.windData.map(d => {
       if (!d.gust) return null;
       
-      // Convert to same units for comparison (assuming mph threshold)
-      const gustDiff = d.gust - d.speed;
-      const thresholdMs = 2.24; // ~5 mph in m/s
+      // Convert to knots for comparison
+      const sustainedKnots = d.speed * 1.944; // m/s to knots
+      const gustKnots = d.gust * 1.944; // m/s to knots
+      const gustDiff = gustKnots - sustainedKnots;
       
-      return gustDiff >= thresholdMs ? d.gust : null;
+      return gustDiff >= 10 ? d.gust : null;
     });
 
     this.chart.data.labels = labels;
     this.chart.data.datasets[0].data = speedData;
-    this.chart.data.datasets[1].data = gustData;
+    if (this.hasGustEntity && this.chart.data.datasets[1]) {
+      this.chart.data.datasets[1].data = gustData;
+    }
 
     this.chart.update('none');
   }

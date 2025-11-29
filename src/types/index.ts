@@ -26,15 +26,20 @@ export interface WindBarbCardConfig {
   wind_gust_entity?: string;
   time_period?: number; // hours
   units?: 'mph' | 'kph' | 'm/s' | 'knots'; // display units
-  show_barbs?: boolean;
-  show_graph?: boolean;
-  barb_timeline?: boolean; // show barbs on timeline instead of separate chart
   barb_size?: number;
   graph_height?: number;
+  barb_stem_length?: number;
+  barb_flag_length?: number;
+  barb_line_width?: number;
+  graph_line_width?: number;
+  time_format?: '12' | '24' | 12 | 24;
+  show_legend?: boolean;
+  show_y_axis_label?: boolean;
   theme?: {
     primary_color?: string;
     secondary_color?: string;
     background_color?: string;
+    text_color?: string;
   };
 }
 

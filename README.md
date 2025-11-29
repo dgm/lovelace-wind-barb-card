@@ -1,14 +1,13 @@
 # Wind Barb Card for Home Assistant
 
-A custom Lovelace card for displaying wind data with meteorological wind barbs and time-series graphs.
+A custom Lovelace card for displaying wind data as a meteogram with meteorological wind barbs on a timeline.
 
 ## Features
 
-- **Wind Barbs**: Meteorological standard wind barbs showing direction and speed
-- **Time-Series Graphs**: Interactive charts for wind speed and direction over time
+- **Wind Barb Meteogram**: Timeline display with meteorological standard wind barbs showing direction and speed over time
 - **Configurable Time Periods**: Display data for last 24h, 48h, or custom periods
 - **Multiple Units**: Support for mph, kph, m/s, and knots
-- **Professional Appearance**: Weather station-style design
+- **Professional Appearance**: Weather station-style meteogram design
 - **Real-time Updates**: Automatic data refresh every 5 minutes
 
 ## Installation
@@ -34,7 +33,7 @@ resources:
 ### Basic Configuration
 ```yaml
 type: custom:wind-barb-card
-name: "Wind Conditions"
+name: "Wind Meteogram"
 wind_direction_entity: sensor.gw2000b_wind_direction
 wind_speed_entity: sensor.gw2000b_wind_speed
 ```
@@ -42,20 +41,26 @@ wind_speed_entity: sensor.gw2000b_wind_speed
 ### Full Configuration
 ```yaml
 type: custom:wind-barb-card
-name: "Weather Station Wind"
+name: "Weather Station Wind Meteogram"
 wind_direction_entity: sensor.gw2000b_wind_direction
 wind_speed_entity: sensor.gw2000b_wind_speed
 wind_gust_entity: sensor.gw2000b_wind_gust
 time_period: 24
 units: "mph"
-show_barbs: true
-show_graph: true
 barb_size: 40
 graph_height: 300
+barb_stem_length: 25
+barb_flag_length: 12
+barb_line_width: 2
+graph_line_width: 2
+time_format: "24"
+show_legend: true
+show_y_axis_label: false
 theme:
   primary_color: "#1976d2"
   secondary_color: "#ff9800"
   background_color: "#ffffff"
+  text_color: "#333333"
 ```
 
 ### Configuration Options
@@ -69,14 +74,19 @@ theme:
 | `wind_gust_entity` | string | Optional | Entity ID for wind gusts |
 | `time_period` | number | 24 | Hours of historical data to display |
 | `units` | string | "m/s" | Display units: "mph", "kph", "m/s", "knots" |
-| `show_barbs` | boolean | true | Show wind barbs for current conditions |
-| `show_graph` | boolean | true | Show time-series graph |
-| `barb_timeline` | boolean | false | Show wind barbs on timeline (instead of line chart) |
 | `barb_size` | number | 40 | Size of wind barbs in pixels |
-| `graph_height` | number | 300 | Height of the graph in pixels |
+| `graph_height` | number | 300 | Height of the meteogram in pixels |
+| `barb_stem_length` | number | 25 | Length of wind barb stem in pixels |
+| `barb_flag_length` | number | 12 | Length of wind barb flags in pixels |
+| `barb_line_width` | number | 2 | Width of wind barb lines in pixels |
+| `graph_line_width` | number | 2 | Width of graph lines in pixels |
+| `time_format` | string | "24" | Time display format: "12" or "24" |
+| `show_legend` | boolean | true | Show colored legend above chart |
+| `show_y_axis_label` | boolean | false | Show y-axis label text |
 | `theme.primary_color` | string | "#1976d2" | Primary color for wind speed |
-| `theme.secondary_color` | string | "#ff9800" | Secondary color for wind direction |
+| `theme.secondary_color` | string | "#ff9800" | Secondary color for wind gusts |
 | `theme.background_color` | string | Auto | Card background color |
+| `theme.text_color` | string | Auto | Card title text color |
 
 ## Wind Speed Units
 
