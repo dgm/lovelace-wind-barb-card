@@ -101,7 +101,7 @@ export class WindBarbChart extends LitElement {
         forecastData.forEach(windPoint => {
           const x = xScale.getPixelForValue(windPoint.timestamp.getTime());
           const y = yScale.getPixelForValue(windPoint.speed);
-          this.drawWindBarb(ctx, x, y, windPoint.direction, windPoint.speed, windPoint.isForecast);
+          this.drawWindBarb(ctx, x, y, windPoint.direction, windPoint.speed);
         });
         
         // Draw historical barbs with spacing
@@ -114,7 +114,7 @@ export class WindBarbChart extends LitElement {
             const windPoint = historicalData[i];
             const x = xScale.getPixelForValue(windPoint.timestamp.getTime());
             const y = yScale.getPixelForValue(windPoint.speed);
-            this.drawWindBarb(ctx, x, y, windPoint.direction, windPoint.speed, windPoint.isForecast);
+            this.drawWindBarb(ctx, x, y, windPoint.direction, windPoint.speed);
           }
         }
         
@@ -316,8 +316,7 @@ export class WindBarbChart extends LitElement {
     x: number, 
     y: number, 
     direction: number,
-    speed: number,
-    isForecast?: boolean
+    speed: number
   ): void {
     ctx.save();
     ctx.translate(x, y);
@@ -340,11 +339,11 @@ export class WindBarbChart extends LitElement {
     // Draw flags at stem top
     ctx.translate(0, -this.barbStemLength);
     const speedKnots = speed * 1.944;
-    this.drawBarbFlags(ctx, speedKnots, isForecast);
+    this.drawBarbFlags(ctx, speedKnots);
     ctx.restore();
   }
 
-  private drawBarbFlags(ctx: CanvasRenderingContext2D, speedKnots: number, isForecast?: boolean): void {
+  private drawBarbFlags(ctx: CanvasRenderingContext2D, speedKnots: number): void {
     let remainingSpeed = Math.round(speedKnots);
     let yOffset = 0; // Start at stem top
     const barbColor = '#2e7d32';
@@ -390,9 +389,7 @@ export class WindBarbChart extends LitElement {
   private updateChart(): void {
     if (!this.chart || !this.windData.length) return;
 
-    // Split data into historical and forecast
-    const historicalData = this.windData.filter(d => !d.isForecast);
-    const forecastData = this.windData.filter(d => d.isForecast);
+    // Data is already filtered in updateDisplayData()
     
     const allLabels = this.windData.map(d => d.timestamp);
     

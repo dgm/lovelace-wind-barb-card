@@ -14,6 +14,9 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
   @state() private error?: string;
   @state() private showForecast = true;
 
+  // Debug toggle - set to true to enable debug logging
+  private static readonly DEBUG = false;
+
   private api?: HomeAssistantAPI;
   private updateInterval?: number;
 
@@ -220,46 +223,53 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
     this.error = undefined;
 
     try {
-
+      // Store original time range - this should NEVER change
+      const originalTimeRange = { ...this.config.time_range! };
       
-      // Fetch forecast data first to determine time range extension
-      let forecastData: WindData[] = [];
-      let extendedTimeRange = this.config.time_range;
+      if (WindBarbCard.DEBUG) {
+        console.log('=== FETCH WIND DATA START ===');
+        console.log('Original time range:', originalTimeRange);
+        console.log('Forecast enabled:', this.showForecast);
+      }
       
+      // Fetch forecast data first
+      let allForecastData: WindData[] = [];
       if (this.config.forecast_entity) {
-        forecastData = await this.api.fetchForecastData(
+        allForecastData = await this.api.fetchForecastData(
           this.config.forecast_entity,
           this.config.forecast_hours || 48
         );
-
+      }
+      
+      // Calculate display time range (extend to include available forecast)
+      let displayTimeRange = originalTimeRange;
+      if (this.config.forecast_entity && this.showForecast && allForecastData.length > 0) {
+        // Extend to include first few hours of forecast
+        const forecastHours = Math.min(6, this.config.forecast_hours || 48); // Max 6 hours
+        const extendedEnd = new Date(Date.now() + (forecastHours * 60 * 60 * 1000));
         
-        // Extend time range END to include forecast data (only if forecast is enabled)
-        if (forecastData.length > 0 && this.config.time_range && this.showForecast) {
-          const lastForecastTime = forecastData[forecastData.length - 1].timestamp;
-          const originalEnd = this.config.time_range.end === 'now' ? new Date() : new Date(this.config.time_range.end);
-          
-          // Only extend if forecast goes beyond original end time
-          if (lastForecastTime > originalEnd) {
-            extendedTimeRange = {
-              ...this.config.time_range,
-              end: lastForecastTime.toISOString()
-            };
-          }
+        displayTimeRange = {
+          ...originalTimeRange,
+          end: extendedEnd.toISOString()
+        };
+        
+        if (WindBarbCard.DEBUG) {
+          console.log('Extended display range:', displayTimeRange);
+          console.log('Extension duration (hours):', forecastHours);
         }
       }
       
-      // Fetch historical data with ORIGINAL time range (not extended)
+      // Fetch historical data using ORIGINAL time range
       let historicalData: WindData[];
-      
-      if (this.config.time_range) {
+      if (originalTimeRange) {
+        if (WindBarbCard.DEBUG) console.log('Fetching historical data with original range');
         historicalData = await this.api.fetchWindDataWithTimeRange(
           this.config.wind_direction_entity,
           this.config.wind_speed_entity,
           this.config.wind_gust_entity,
-          this.config.time_range  // Use original range for historical data
+          originalTimeRange
         );
       } else {
-        // Fallback to legacy method
         historicalData = await this.api.fetchWindData(
           this.config.wind_direction_entity,
           this.config.wind_speed_entity,
@@ -268,30 +278,69 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
         );
       }
       
-      // Store all data and filter for display
+      if (WindBarbCard.DEBUG) {
+        console.log('Historical data points:', historicalData.length);
+        if (historicalData.length > 0) {
+          console.log('Historical range:', historicalData[0].timestamp, 'to', historicalData[historicalData.length - 1].timestamp);
+        }
+      }
+      
+      // Filter forecast data to display window (already fetched above)
+      let forecastData: WindData[] = [];
+      if (this.config.forecast_entity && allForecastData) {
+        
+        // Filter forecast to fit display window (include recent past data)
+        const displayStart = new Date(Date.now() - 2 * 60 * 60 * 1000); // Include last 2 hours
+        const displayEnd = new Date(displayTimeRange.end);
+        
+        if (WindBarbCard.DEBUG) {
+          console.log('All forecast data points:', allForecastData.length);
+          console.log('Display window:', displayStart, 'to', displayEnd);
+          if (allForecastData.length > 0) {
+            console.log('First forecast:', allForecastData[0].timestamp);
+            console.log('Last forecast:', allForecastData[allForecastData.length - 1].timestamp);
+          }
+        }
+        
+        forecastData = allForecastData.filter(d => 
+          d.timestamp >= displayStart && d.timestamp <= displayEnd
+        );
+        
+        if (WindBarbCard.DEBUG) {
+          console.log('Filtered forecast data points:', forecastData.length);
+          if (forecastData.length > 0) {
+            console.log('Forecast range:', forecastData[0].timestamp, 'to', forecastData[forecastData.length - 1].timestamp);
+          }
+        }
+      }
+      
+      // Store all data and update display
       this.allWindData = [...historicalData, ...forecastData];
       this.updateDisplayData();
       
-      // Update config with extended time range (only if forecast is enabled)
-      if (extendedTimeRange !== this.config.time_range && this.showForecast) {
-        this.config = {
-          ...this.config,
-          time_range: extendedTimeRange
-        };
-      }
+      // Update config with display time range for chart
+      this.config = {
+        ...this.config,
+        time_range: displayTimeRange
+      };
       
-
+      if (WindBarbCard.DEBUG) {
+        console.log('Final wind data points:', this.windData.length);
+        console.log('=== FETCH WIND DATA END ===');
+      }
       
       if (this.windData.length === 0) {
         this.error = 'No historical data available. Check entity names and history retention.';
       }
     } catch (err) {
       this.error = `Failed to fetch wind data: ${err}`;
-      console.error('Wind data fetch error:', err);
+      if (WindBarbCard.DEBUG) console.error('Wind data fetch error:', err);
     } finally {
       this.loading = false;
     }
   }
+
+
 
   private startAutoUpdate(): void {
     // Update every 5 minutes

@@ -311,7 +311,7 @@ export class HomeAssistantAPI {
     const now = new Date();
     const forecastData: WindData[] = [];
     
-    // Process all data, filter future only, then limit
+    // Process all data and expand time periods
     const maxEntries = Math.min(windSpeedData.length, windDirData.length);
     
     for (let i = 0; i < maxEntries; i++) {
@@ -320,21 +320,39 @@ export class HomeAssistantAPI {
       
       if (speedEntry?.validTime && dirEntry?.validTime && 
           speedEntry.value !== null && dirEntry.value !== null) {
-        const timestamp = new Date(speedEntry.validTime.split('/')[0]);
         
-        // Only include future forecast data
-        if (timestamp > now) {
-          forecastData.push({
-            timestamp,
-            direction: dirEntry.value,
-            speed: speedEntry.value,
-            isForecast: true
-          });
+        // Parse validTime format: "2025-11-30T10:00:00+00:00/PT3H"
+        const [startTimeStr, durationStr] = speedEntry.validTime.split('/');
+        const startTime = new Date(startTimeStr);
+        
+        // Parse duration (PT3H = 3 hours)
+        let durationHours = 1; // Default to 1 hour
+        if (durationStr) {
+          const match = durationStr.match(/PT(\d+)H/);
+          if (match) {
+            durationHours = parseInt(match[1]);
+          }
+        }
+        
+        // Create hourly data points for the entire duration
+        for (let h = 0; h < durationHours; h++) {
+          const timestamp = new Date(startTime.getTime() + (h * 60 * 60 * 1000));
+          
+          // Only include future forecast data
+          if (timestamp > now) {
+            forecastData.push({
+              timestamp,
+              direction: dirEntry.value,
+              speed: speedEntry.value,
+              isForecast: true
+            });
+          }
         }
       }
     }
     
-    // Return requested number of future forecast points
+    // Sort by timestamp and return requested number of points
+    forecastData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
     return forecastData.slice(0, hours);
   }
 

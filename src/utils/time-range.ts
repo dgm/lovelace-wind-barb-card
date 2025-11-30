@@ -92,9 +92,19 @@ export class TimeRangeUtils {
 
   static generateSampleTimes(timeRange: TimeInterval, intervalMs: number): Date[] {
     const times: Date[] = [];
-    let current = timeRange.start.getTime();
     
-    while (current <= timeRange.end.getTime()) {
+    // Start from the first hour boundary at or after the start time
+    const startTime = new Date(timeRange.start);
+    const firstHour = new Date(startTime);
+    firstHour.setMinutes(0, 0, 0); // Round down to hour
+    if (firstHour < startTime) {
+      firstHour.setHours(firstHour.getHours() + 1); // Move to next hour if needed
+    }
+    
+    let current = firstHour.getTime();
+    const endTime = timeRange.end.getTime();
+    
+    while (current <= endTime) {
       times.push(new Date(current));
       current += intervalMs;
     }
