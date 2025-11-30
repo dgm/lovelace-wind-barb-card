@@ -84,24 +84,73 @@ export class WindBarbChart extends LitElement {
 
     const windBarbPlugin = {
       id: 'windBarbs',
-      afterDraw: (chart: Chart) => { // afterDraw renders on top
+      afterDraw: (chart: Chart) => {
         const ctx = chart.ctx;
-        const meta = chart.getDatasetMeta(0);
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.y;
+        
+        if (!this.windData.length) return;
         
         ctx.save();
-        ctx.globalCompositeOperation = 'source-over'; // Ensure barbs are on top
         
-        meta.data.forEach((point, index) => {
-          if (index >= this.windData.length) return;
-          
-          const windPoint = this.windData[index];
-          const x = point.x;
-          const y = point.y; // Position at wind speed value on line
-          
-          this.drawWindBarb(ctx, x, y, windPoint.direction, windPoint.speed);
+        // Split data for different barb spacing strategies
+        const historicalData = this.windData.filter(d => !d.isForecast);
+        const forecastData = this.windData.filter(d => d.isForecast);
+        
+        // Draw all forecast barbs (they're already sparse)
+        forecastData.forEach(windPoint => {
+          const x = xScale.getPixelForValue(windPoint.timestamp.getTime());
+          const y = yScale.getPixelForValue(windPoint.speed);
+          this.drawWindBarb(ctx, x, y, windPoint.direction, windPoint.speed, windPoint.isForecast);
         });
         
+        // Draw historical barbs with spacing
+        if (historicalData.length > 0) {
+          const chartWidth = xScale.width;
+          const maxHistoricalBarbs = Math.floor(chartWidth / 60); // 60px spacing for historical
+          const step = Math.max(1, Math.ceil(historicalData.length / maxHistoricalBarbs));
+          
+          for (let i = 0; i < historicalData.length; i += step) {
+            const windPoint = historicalData[i];
+            const x = xScale.getPixelForValue(windPoint.timestamp.getTime());
+            const y = yScale.getPixelForValue(windPoint.speed);
+            this.drawWindBarb(ctx, x, y, windPoint.direction, windPoint.speed, windPoint.isForecast);
+          }
+        }
+        
         ctx.restore();
+      }
+    };
+
+    const presentMomentPlugin = {
+      id: 'presentMoment',
+      afterDraw: (chart: Chart) => {
+        const ctx = chart.ctx;
+        const now = new Date();
+        
+        // Find if 'now' falls within the chart time range
+        const labels = chart.data.labels as Date[];
+        if (!labels.length) return;
+        
+        const startTime = labels[0].getTime();
+        const endTime = labels[labels.length - 1].getTime();
+        const nowTime = now.getTime();
+        
+        if (nowTime >= startTime && nowTime <= endTime) {
+          const xScale = chart.scales.x;
+          const yScale = chart.scales.y;
+          const x = xScale.getPixelForValue(nowTime);
+          
+          ctx.save();
+          ctx.strokeStyle = '#ff0000';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.moveTo(x, yScale.top);
+          ctx.lineTo(x, yScale.bottom);
+          ctx.stroke();
+          ctx.restore();
+        }
       }
     };
 
@@ -119,7 +168,7 @@ export class WindBarbChart extends LitElement {
         const rectWidths: number[] = [];
         
         datasets.forEach((dataset) => {
-          if (!dataset.label) return;
+          if (!dataset.label || dataset.label.trim() === '') return;
           const textWidth = ctx.measureText(dataset.label).width;
           const rectWidth = textWidth + 12;
           rectWidths.push(rectWidth);
@@ -131,10 +180,11 @@ export class WindBarbChart extends LitElement {
         let x = chart.width - totalWidth - 10;
         const y = 15;
         
-        datasets.forEach((dataset, index) => {
-          if (!dataset.label) return;
+        let rectIndex = 0;
+        datasets.forEach((dataset) => {
+          if (!dataset.label || dataset.label.trim() === '') return;
           
-          const rectWidth = rectWidths[index];
+          const rectWidth = rectWidths[rectIndex];
           
           // Draw colored background rectangle
           ctx.fillStyle = dataset.borderColor as string;
@@ -146,6 +196,7 @@ export class WindBarbChart extends LitElement {
           ctx.fillText(dataset.label, x + rectWidth/2, y + 2);
           
           x += rectWidth + 10; // Move to next legend item with gap
+          rectIndex++;
         });
         
         ctx.restore();
@@ -165,7 +216,18 @@ export class WindBarbChart extends LitElement {
           tension: 0.1,
           pointRadius: 0,
           pointHoverRadius: 4,
-          order: 2 // Behind barbs
+          order: 2
+        }, {
+          label: '',
+          data: [],
+          borderColor: this.primaryColor,
+          backgroundColor: this.primaryColor + '10',
+          borderWidth: this.graphLineWidth,
+          borderDash: [5, 5],
+          tension: 0.1,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          order: 2
         }, ...(this.hasGustEntity ? [{
           label: `Wind Gusts (${this.units})`,
           data: [],
@@ -175,7 +237,7 @@ export class WindBarbChart extends LitElement {
           tension: 0.1,
           pointRadius: 3,
           pointHoverRadius: 5,
-          order: 1 // Above wind speed line
+          order: 1
         }] : [])]
       },
       options: {
@@ -242,7 +304,7 @@ export class WindBarbChart extends LitElement {
           }
         }
       },
-      plugins: [windBarbPlugin, ...(this.showLegend ? [customLegendPlugin] : [])]
+      plugins: [windBarbPlugin, presentMomentPlugin, ...(this.showLegend ? [customLegendPlugin] : [])]
     };
 
     this.chart = new Chart(canvas, config);
@@ -254,7 +316,8 @@ export class WindBarbChart extends LitElement {
     x: number, 
     y: number, 
     direction: number,
-    speed: number
+    speed: number,
+    isForecast?: boolean
   ): void {
     ctx.save();
     ctx.translate(x, y);
@@ -262,6 +325,9 @@ export class WindBarbChart extends LitElement {
     // Rotate barb - meteorological convention: barb points INTO wind
     const rotationRadians = (direction * Math.PI) / 180;
     ctx.rotate(rotationRadians);
+    
+    // Remove forecast styling from barbs (line will be dashed instead)
+    // Wind barbs remain solid for both historical and forecast
     
     // Draw stem
     ctx.strokeStyle = '#2e7d32';
@@ -274,14 +340,16 @@ export class WindBarbChart extends LitElement {
     // Draw flags at stem top
     ctx.translate(0, -this.barbStemLength);
     const speedKnots = speed * 1.944;
-    this.drawBarbFlags(ctx, speedKnots);
+    this.drawBarbFlags(ctx, speedKnots, isForecast);
     ctx.restore();
   }
 
-  private drawBarbFlags(ctx: CanvasRenderingContext2D, speedKnots: number): void {
+  private drawBarbFlags(ctx: CanvasRenderingContext2D, speedKnots: number, isForecast?: boolean): void {
     let remainingSpeed = Math.round(speedKnots);
     let yOffset = 0; // Start at stem top
     const barbColor = '#2e7d32';
+    
+    // Wind barb flags remain solid for both historical and forecast
     
     // 50-knot pennants
     while (remainingSpeed >= 50) {
@@ -322,25 +390,35 @@ export class WindBarbChart extends LitElement {
   private updateChart(): void {
     if (!this.chart || !this.windData.length) return;
 
-    const labels = this.windData.map(d => d.timestamp);
-    const speedData = this.windData.map(d => d.speed);
+    // Split data into historical and forecast
+    const historicalData = this.windData.filter(d => !d.isForecast);
+    const forecastData = this.windData.filter(d => d.isForecast);
     
-    // Only show gusts when ≥10 knots higher than sustained winds (meteorological standard)
+    const allLabels = this.windData.map(d => d.timestamp);
+    
+    // Historical speed data
+    const historicalSpeed = this.windData.map(d => d.isForecast ? null : d.speed);
+    
+    // Forecast speed data  
+    const forecastSpeed = this.windData.map(d => d.isForecast ? d.speed : null);
+    
+    // Gust data (only for historical)
     const gustData = this.windData.map(d => {
-      if (!d.gust) return null;
+      if (!d.gust || d.isForecast) return null;
       
-      // Convert to knots for comparison
-      const sustainedKnots = d.speed * 1.944; // m/s to knots
-      const gustKnots = d.gust * 1.944; // m/s to knots
+      const sustainedKnots = d.speed * 1.944;
+      const gustKnots = d.gust * 1.944;
       const gustDiff = gustKnots - sustainedKnots;
       
       return gustDiff >= 10 ? d.gust : null;
     });
 
-    this.chart.data.labels = labels;
-    this.chart.data.datasets[0].data = speedData;
-    if (this.hasGustEntity && this.chart.data.datasets[1]) {
-      this.chart.data.datasets[1].data = gustData;
+    this.chart.data.labels = allLabels;
+    this.chart.data.datasets[0].data = historicalSpeed;
+    this.chart.data.datasets[1].data = forecastSpeed;
+    
+    if (this.hasGustEntity && this.chart.data.datasets[2]) {
+      this.chart.data.datasets[2].data = gustData;
     }
 
     this.chart.update('none');

@@ -15,14 +15,7 @@ export class HomeAssistantAPI {
     const path = `history/period/${startTimeStr}?filter_entity_id=${entityIds.join(',')}&end_time=${endTimeStr}`;
     
     try {
-      console.log('Fetching history from path:', path);
-      const result = await this.hass.callApi('GET', path);
-      console.log('History API response length:', result?.length || 0);
-      if (result && result.length > 0) {
-        result.forEach((entityData: any[], i: number) => {
-          console.log(`Entity ${i} (${entityData[0]?.entity_id}): ${entityData.length} points`);
-        });
-      }
+  const result = await this.hass.callApi('GET', path);
       return result || [];
     } catch (error) {
       console.error('Failed to fetch history data:', error);
@@ -136,11 +129,7 @@ export class HomeAssistantAPI {
       data.length > 0 && data[0].entity_id === gustEntity
     ) || [] : [];
     
-    console.log('Processing history data:', {
-      directionPoints: directionData.length,
-      speedPoints: speedData.length,
-      gustPoints: gustData.length
-    });
+
     
     // Use all speed data points as base, find closest direction
     speedData.forEach(speedPoint => {
@@ -176,7 +165,7 @@ export class HomeAssistantAPI {
     // Sort by timestamp
     windData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
     
-    console.log('Processed wind data points:', windData.length);
+
     return windData;
   }
   
@@ -298,40 +287,55 @@ export class HomeAssistantAPI {
     return closest;
   }
 
-  static convertWindSpeed(speed: number, fromUnit: string, toUnit: string = 'm/s'): number {
-    // Convert to m/s first
-    let speedMs = speed;
-    
-    switch (fromUnit.toLowerCase()) {
-      case 'mph':
-        speedMs = speed * 0.44704;
-        break;
-      case 'kph':
-      case 'km/h':
-        speedMs = speed * 0.277778;
-        break;
-      case 'knots':
-      case 'kt':
-        speedMs = speed * 0.514444;
-        break;
-      case 'm/s':
-        speedMs = speed;
-        break;
+  async fetchForecastData(forecastEntity: string, hours: number = 48): Promise<WindData[]> {
+    const entity = this.hass.states[forecastEntity];
+    if (!entity) {
+      console.warn('Forecast entity not found:', forecastEntity);
+      return [];
     }
-    
-    // Convert from m/s to target unit
-    switch (toUnit.toLowerCase()) {
-      case 'mph':
-        return speedMs / 0.44704;
-      case 'kph':
-      case 'km/h':
-        return speedMs / 0.277778;
-      case 'knots':
-      case 'kt':
-        return speedMs / 0.514444;
-      case 'm/s':
-      default:
-        return speedMs;
+
+
+
+    // Use gridded forecast data
+    if (entity.attributes.windSpeed?.values && entity.attributes.windDirection?.values) {
+      return this.parseGriddedForecast(entity.attributes, hours);
     }
+
+    console.warn('No gridded forecast data found in entity attributes');
+    return [];
   }
+
+  private parseGriddedForecast(properties: any, hours: number): WindData[] {
+    const windSpeedData = properties.windSpeed?.values || [];
+    const windDirData = properties.windDirection?.values || [];
+    const now = new Date();
+    const forecastData: WindData[] = [];
+    
+    // Process all data, filter future only, then limit
+    const maxEntries = Math.min(windSpeedData.length, windDirData.length);
+    
+    for (let i = 0; i < maxEntries; i++) {
+      const speedEntry = windSpeedData[i];
+      const dirEntry = windDirData[i];
+      
+      if (speedEntry?.validTime && dirEntry?.validTime && 
+          speedEntry.value !== null && dirEntry.value !== null) {
+        const timestamp = new Date(speedEntry.validTime.split('/')[0]);
+        
+        // Only include future forecast data
+        if (timestamp > now) {
+          forecastData.push({
+            timestamp,
+            direction: dirEntry.value,
+            speed: speedEntry.value,
+            isForecast: true
+          });
+        }
+      }
+    }
+    
+    // Return requested number of future forecast points
+    return forecastData.slice(0, hours);
+  }
+
 }

@@ -9,8 +9,10 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private config!: WindBarbCardConfig;
   @state() private windData: WindData[] = [];
+  @state() private allWindData: WindData[] = []; // Store all data
   @state() private loading = false;
   @state() private error?: string;
+  @state() private showForecast = true;
 
   private api?: HomeAssistantAPI;
   private updateInterval?: number;
@@ -218,24 +220,47 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
     this.error = undefined;
 
     try {
-      console.log('Fetching wind data for entities:', {
-        direction: this.config.wind_direction_entity,
-        speed: this.config.wind_speed_entity,
-        timeRange: this.config.time_range
-      });
+
       
-      let data: WindData[];
+      // Fetch forecast data first to determine time range extension
+      let forecastData: WindData[] = [];
+      let extendedTimeRange = this.config.time_range;
+      
+      if (this.config.forecast_entity) {
+        forecastData = await this.api.fetchForecastData(
+          this.config.forecast_entity,
+          this.config.forecast_hours || 48
+        );
+
+        
+        // Extend time range END to include forecast data (only if forecast is enabled)
+        if (forecastData.length > 0 && this.config.time_range && this.showForecast) {
+          const lastForecastTime = forecastData[forecastData.length - 1].timestamp;
+          const originalEnd = this.config.time_range.end === 'now' ? new Date() : new Date(this.config.time_range.end);
+          
+          // Only extend if forecast goes beyond original end time
+          if (lastForecastTime > originalEnd) {
+            extendedTimeRange = {
+              ...this.config.time_range,
+              end: lastForecastTime.toISOString()
+            };
+          }
+        }
+      }
+      
+      // Fetch historical data with ORIGINAL time range (not extended)
+      let historicalData: WindData[];
       
       if (this.config.time_range) {
-        data = await this.api.fetchWindDataWithTimeRange(
+        historicalData = await this.api.fetchWindDataWithTimeRange(
           this.config.wind_direction_entity,
           this.config.wind_speed_entity,
           this.config.wind_gust_entity,
-          this.config.time_range
+          this.config.time_range  // Use original range for historical data
         );
       } else {
         // Fallback to legacy method
-        data = await this.api.fetchWindData(
+        historicalData = await this.api.fetchWindData(
           this.config.wind_direction_entity,
           this.config.wind_speed_entity,
           this.config.wind_gust_entity,
@@ -243,10 +268,21 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
         );
       }
       
-      console.log('Fetched wind data points:', data.length);
-      this.windData = data;
+      // Store all data and filter for display
+      this.allWindData = [...historicalData, ...forecastData];
+      this.updateDisplayData();
       
-      if (data.length === 0) {
+      // Update config with extended time range (only if forecast is enabled)
+      if (extendedTimeRange !== this.config.time_range && this.showForecast) {
+        this.config = {
+          ...this.config,
+          time_range: extendedTimeRange
+        };
+      }
+      
+
+      
+      if (this.windData.length === 0) {
         this.error = 'No historical data available. Check entity names and history retention.';
       }
     } catch (err) {
@@ -325,6 +361,33 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
     };
     
     this.fetchWindData();
+  }
+
+  private handleForecastToggle(): void {
+    this.showForecast = !this.showForecast;
+    this.updateDisplayData();
+  }
+
+  private updateDisplayData(): void {
+    const filteredForecastData = this.showForecast ? 
+      this.allWindData.filter(d => d.isForecast) : [];
+    const historicalData = this.allWindData.filter(d => !d.isForecast);
+    this.windData = [...historicalData, ...filteredForecastData];
+  }
+
+  private renderForecastToggle() {
+    if (!this.config.forecast_entity) return '';
+    
+    return html`
+      <div class="time-presets">
+        <button 
+          class="preset-button ${this.showForecast ? 'active' : ''}"
+          @click=${this.handleForecastToggle}
+        >
+          Forecast ${this.showForecast ? 'ON' : 'OFF'}
+        </button>
+      </div>
+    `;
   }
 
   private renderWindowControl() {
@@ -409,6 +472,7 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
         </div>
         
         ${this.renderTimePresets()}
+        ${this.renderForecastToggle()}
         ${this.renderWindowControl()}
       </div>
     `;

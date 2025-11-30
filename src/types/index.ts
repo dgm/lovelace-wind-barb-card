@@ -53,6 +53,8 @@ export interface WindBarbCardConfig {
   show_time_presets?: boolean; // show preset buttons
   time_presets?: TimePreset[]; // custom presets
   show_window_control?: boolean; // show window size slider
+  forecast_entity?: string; // NWS forecast entity
+  forecast_hours?: number; // hours of forecast to show
   units?: 'mph' | 'kph' | 'm/s' | 'knots'; // display units
   barb_size?: number;
   graph_height?: number;
@@ -76,6 +78,7 @@ export interface WindData {
   direction: number; // degrees
   speed: number; // m/s
   gust?: number; // m/s
+  isForecast?: boolean; // true for forecast data
 }
 
 export interface TimeInterval {
