@@ -1,4 +1,5 @@
-import { HomeAssistant, HistoryData, WindData } from '../types';
+import { HomeAssistant, HistoryData, WindData, TimeRangeConfig, TimeInterval } from '../types';
+import { TimeRangeUtils } from './time-range';
 
 export class HomeAssistantAPI {
   constructor(private hass: HomeAssistant) {}
@@ -18,7 +19,7 @@ export class HomeAssistantAPI {
       const result = await this.hass.callApi('GET', path);
       console.log('History API response length:', result?.length || 0);
       if (result && result.length > 0) {
-        result.forEach((entityData, i) => {
+        result.forEach((entityData: any[], i: number) => {
           console.log(`Entity ${i} (${entityData[0]?.entity_id}): ${entityData.length} points`);
         });
       }
@@ -46,6 +47,28 @@ export class HomeAssistantAPI {
     
     // Aggregate into hourly bins
     return this.aggregateWindData(rawData, hours);
+  }
+
+  async fetchWindDataWithTimeRange(
+    directionEntity: string,
+    speedEntity: string,
+    gustEntity: string | undefined,
+    timeRangeConfig: TimeRangeConfig
+  ): Promise<WindData[]> {
+    const timeRange = TimeRangeUtils.parseTimeRange(timeRangeConfig);
+    const intervalMs = TimeRangeUtils.calculateOptimalInterval(timeRange, timeRangeConfig);
+    
+    const entities = [directionEntity, speedEntity];
+    if (gustEntity) entities.push(gustEntity);
+    
+    const historyData = await this.fetchHistory(entities, timeRange.start, timeRange.end);
+    const rawData = this.processWindHistory(historyData, directionEntity, speedEntity, gustEntity);
+    
+    if (timeRangeConfig.sampling === 'windowed_representative') {
+      return this.sampleWindDataWindowed(rawData, timeRange, intervalMs, timeRangeConfig);
+    }
+    
+    return this.sampleWindDataSingle(rawData, timeRange, intervalMs);
   }
   
   private aggregateWindData(data: WindData[], totalHours: number): WindData[] {
@@ -179,7 +202,103 @@ export class HomeAssistantAPI {
     return closest;
   }
 
-  convertWindSpeed(speed: number, fromUnit: string, toUnit: string = 'm/s'): number {
+  private sampleWindDataWindowed(
+    data: WindData[], 
+    timeRange: TimeInterval, 
+    intervalMs: number,
+    config: TimeRangeConfig
+  ): WindData[] {
+    const windowSizeMs = config.window_size ? 
+      TimeRangeUtils.parseDuration(config.window_size) : 10 * 60 * 1000; // 10min default
+    const minPoints = config.min_points || 3;
+    
+    const sampleTimes = TimeRangeUtils.generateSampleTimes(timeRange, intervalMs);
+    const sampledData: WindData[] = [];
+    
+    sampleTimes.forEach(sampleTime => {
+      const windowStart = sampleTime.getTime() - windowSizeMs / 2;
+      const windowEnd = sampleTime.getTime() + windowSizeMs / 2;
+      
+      const windowData = data.filter(point => {
+        const time = point.timestamp.getTime();
+        return time >= windowStart && time <= windowEnd;
+      });
+      
+      if (windowData.length >= minPoints) {
+        // Use median values to filter outliers
+        const speeds = windowData.map(p => p.speed).sort((a, b) => a - b);
+        const directions = windowData.map(p => p.direction);
+        const gusts = windowData.filter(p => p.gust).map(p => p.gust!).sort((a, b) => a - b);
+        
+        const medianSpeed = speeds[Math.floor(speeds.length / 2)];
+        const avgDirection = this.averageDirection(directions);
+        const medianGust = gusts.length > 0 ? gusts[Math.floor(gusts.length / 2)] : undefined;
+        
+        sampledData.push({
+          timestamp: sampleTime,
+          speed: medianSpeed,
+          direction: avgDirection,
+          gust: medianGust
+        });
+      } else if (windowData.length > 0) {
+        // Fallback to single closest point
+        const closest = windowData.reduce((prev, curr) => 
+          Math.abs(curr.timestamp.getTime() - sampleTime.getTime()) < 
+          Math.abs(prev.timestamp.getTime() - sampleTime.getTime()) ? curr : prev
+        );
+        
+        sampledData.push({
+          ...closest,
+          timestamp: sampleTime
+        });
+      }
+    });
+    
+    return sampledData;
+  }
+
+  private sampleWindDataSingle(
+    data: WindData[], 
+    timeRange: TimeInterval, 
+    intervalMs: number
+  ): WindData[] {
+    const sampleTimes = TimeRangeUtils.generateSampleTimes(timeRange, intervalMs);
+    const sampledData: WindData[] = [];
+    
+    sampleTimes.forEach(sampleTime => {
+      const closest = this.findClosestWindData(data, sampleTime, intervalMs / 2);
+      if (closest) {
+        sampledData.push({
+          ...closest,
+          timestamp: sampleTime
+        });
+      }
+    });
+    
+    return sampledData;
+  }
+
+  private findClosestWindData(
+    data: WindData[], 
+    targetTime: Date, 
+    maxDiffMs: number
+  ): WindData | null {
+    const targetTimestamp = targetTime.getTime();
+    let closest: WindData | null = null;
+    let minDiff = maxDiffMs;
+    
+    data.forEach(point => {
+      const diff = Math.abs(point.timestamp.getTime() - targetTimestamp);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = point;
+      }
+    });
+    
+    return closest;
+  }
+
+  static convertWindSpeed(speed: number, fromUnit: string, toUnit: string = 'm/s'): number {
     // Convert to m/s first
     let speedMs = speed;
     

@@ -11,7 +11,6 @@ export interface WindBarbOptions {
 export class WindBarbRenderer {
   private static readonly STEM_LENGTH = 30;
   private static readonly FLAG_LENGTH = 15;
-  private static readonly PENNANT_LENGTH = 10;
 
   static createWindBarb(
     direction: number, 

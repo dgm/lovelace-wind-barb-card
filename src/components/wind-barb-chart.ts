@@ -3,7 +3,6 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { Chart, ChartConfiguration, registerables } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 import { WindData } from '../types';
-import { WindBarbRenderer } from '../utils/wind-barbs';
 
 Chart.register(...registerables);
 
@@ -29,7 +28,6 @@ export class WindBarbChart extends LitElement {
     :host {
       display: block;
       width: 100%;
-      min-height: 300px;
     }
     
     .chart-container {
@@ -100,7 +98,7 @@ export class WindBarbChart extends LitElement {
           const x = point.x;
           const y = point.y; // Position at wind speed value on line
           
-          this.drawWindBarb(ctx, null, x, y, windPoint.direction, windPoint.speed);
+          this.drawWindBarb(ctx, x, y, windPoint.direction, windPoint.speed);
         });
         
         ctx.restore();
@@ -166,7 +164,7 @@ export class WindBarbChart extends LitElement {
           borderWidth: this.graphLineWidth,
           tension: 0.1,
           pointRadius: 0,
-          pointHoverRadius: 0,
+          pointHoverRadius: 4,
           order: 2 // Behind barbs
         }, ...(this.hasGustEntity ? [{
           label: `Wind Gusts (${this.units})`,
@@ -198,10 +196,10 @@ export class WindBarbChart extends LitElement {
             time: {
               unit: 'hour',
               displayFormats: {
-                hour: (this.timeFormat === '12' || this.timeFormat === 12) ? 'h:mm a' : 'HH:mm',
+                hour: (this.timeFormat === '12') ? 'h:mm a' : 'HH:mm',
                 day: 'MMM dd'
               },
-              tooltipFormat: (this.timeFormat === '12' || this.timeFormat === 12) ? 'MMM dd h:mm a' : 'MMM dd HH:mm'
+              tooltipFormat: (this.timeFormat === '12') ? 'MMM dd h:mm a' : 'MMM dd HH:mm'
             },
             grid: {
               color: 'rgba(0,0,0,0.1)'
@@ -236,8 +234,8 @@ export class WindBarbChart extends LitElement {
                 const dirIndex = Math.round(windPoint.direction / 45) % 8;
                 
                 return [
-                  `Speed: ${context.parsed.y.toFixed(1)} ${this.units}`,
-                  `Direction: ${windPoint.direction}° (${directions[dirIndex]})`
+                  `Speed: ${Math.round(context.parsed.y || 0)} ${this.units}`,
+                  `Direction: ${Math.round(windPoint.direction)}° (${directions[dirIndex]})`
                 ];
               }
             }
@@ -253,7 +251,6 @@ export class WindBarbChart extends LitElement {
 
   private drawWindBarb(
     ctx: CanvasRenderingContext2D, 
-    barbSvg: SVGElement | null, 
     x: number, 
     y: number, 
     direction: number,

@@ -18,13 +18,41 @@ export interface LovelaceCard extends HTMLElement {
   getCardSize(): number;
 }
 
+export interface TimeRangeConfig {
+  start: string; // ISO datetime or relative (-24h)
+  end: string; // ISO datetime or "now"
+  interval?: string; // "auto" or fixed ("15min", "1hr", etc.)
+  screen_multiplier?: {
+    mobile?: number; // Max data points for mobile (< 400px)
+    tablet?: number; // Max data points for tablet (400-800px)
+    desktop?: number; // Max data points for desktop (> 800px)
+  };
+  sampling?: 'windowed_representative' | 'single_point';
+  window_size?: string; // Time window around each sample point ("10min")
+  min_interval?: string; // Minimum interval ("5min")
+  max_interval?: string; // Maximum interval ("4hr")
+  min_points?: number; // Minimum points required in window
+}
+
+export interface TimePreset {
+  label: string;
+  start: string;
+  end: string;
+  window_size?: string;
+  interval?: string;
+}
+
 export interface WindBarbCardConfig {
   type: string;
   name?: string;
   wind_direction_entity: string;
   wind_speed_entity: string;
   wind_gust_entity?: string;
-  time_period?: number; // hours
+  time_period?: number; // hours - legacy support
+  time_range?: TimeRangeConfig; // new time control
+  show_time_presets?: boolean; // show preset buttons
+  time_presets?: TimePreset[]; // custom presets
+  show_window_control?: boolean; // show window size slider
   units?: 'mph' | 'kph' | 'm/s' | 'knots'; // display units
   barb_size?: number;
   graph_height?: number;
@@ -48,6 +76,12 @@ export interface WindData {
   direction: number; // degrees
   speed: number; // m/s
   gust?: number; // m/s
+}
+
+export interface TimeInterval {
+  start: Date;
+  end: Date;
+  duration: number; // milliseconds
 }
 
 export interface HistoryData {
