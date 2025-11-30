@@ -104,19 +104,12 @@ export class WindBarbChart extends LitElement {
           this.drawWindBarb(ctx, x, y, windPoint.direction, windPoint.speed);
         });
         
-        // Draw historical barbs with spacing
-        if (historicalData.length > 0) {
-          const chartWidth = xScale.width;
-          const maxHistoricalBarbs = Math.floor(chartWidth / 60); // 60px spacing for historical
-          const step = Math.max(1, Math.ceil(historicalData.length / maxHistoricalBarbs));
-          
-          for (let i = 0; i < historicalData.length; i += step) {
-            const windPoint = historicalData[i];
-            const x = xScale.getPixelForValue(windPoint.timestamp.getTime());
-            const y = yScale.getPixelForValue(windPoint.speed);
-            this.drawWindBarb(ctx, x, y, windPoint.direction, windPoint.speed);
-          }
-        }
+        // Draw all historical barbs (already properly spaced by sampling)
+        historicalData.forEach(windPoint => {
+          const x = xScale.getPixelForValue(windPoint.timestamp.getTime());
+          const y = yScale.getPixelForValue(windPoint.speed);
+          this.drawWindBarb(ctx, x, y, windPoint.direction, windPoint.speed);
+        });
         
         ctx.restore();
       }
