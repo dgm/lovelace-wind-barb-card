@@ -5,6 +5,9 @@ A custom Lovelace card for displaying wind data as a meteogram with meteorologic
 ## Features
 
 - **Wind Barb Meteogram**: Timeline display with meteorological standard wind barbs showing direction and speed over time
+- **NWS Forecast Integration**: Combines local sensor data with National Weather Service gridded forecast data
+- **Visual Forecast Differentiation**: Dashed lines for forecast data, solid lines for historical data, with present moment indicator
+- **Interactive Forecast Toggle**: Button to show/hide forecast data for easy comparison
 - **Interactive Time Controls**: Quick preset buttons (6h, 12h, 24h, 48h) with optimal wind barb spacing
 - **Adaptive Sampling**: Windowed representative sampling prevents wind direction averaging artifacts
 - **Real-time Smoothing Control**: Interactive slider to adjust temporal smoothing (1-60 minutes)
@@ -40,13 +43,15 @@ wind_direction_entity: sensor.gw2000b_wind_direction
 wind_speed_entity: sensor.gw2000b_wind_speed
 ```
 
-### Interactive Configuration
+### Interactive Configuration with Forecast
 ```yaml
 type: custom:wind-barb-card
 name: "Interactive Wind Meteogram"
 wind_direction_entity: sensor.gw2000b_wind_direction
 wind_speed_entity: sensor.gw2000b_wind_speed
 wind_gust_entity: sensor.gw2000b_wind_gust
+forecast_entity: sensor.nws_gridded_forecast
+forecast_hours: 48
 show_time_presets: true
 show_window_control: true
 time_range:
@@ -82,6 +87,8 @@ time_period: 24  # Still supported
 | `wind_direction_entity` | string | **Required** | Entity ID for wind direction (degrees) |
 | `wind_speed_entity` | string | **Required** | Entity ID for wind speed |
 | `wind_gust_entity` | string | Optional | Entity ID for wind gusts |
+| `forecast_entity` | string | Optional | Entity ID for NWS gridded forecast data |
+| `forecast_hours` | number | 48 | Number of forecast hours to display |
 | `time_period` | number | 24 | Hours of historical data to display (legacy) |
 | `time_range` | object | See below | Advanced time control configuration |
 | `units` | string | "m/s" | Display units: "mph", "kph", "m/s", "knots" |
@@ -245,6 +252,36 @@ theme:
   background_color: '#f1f8e9'
   text_color: '#1b5e20'
 ```
+
+## NWS Forecast Integration
+
+To enable forecast data, create a REST sensor for NWS gridded forecast data:
+
+```yaml
+rest:
+  - resource: "https://api.weather.gov/gridpoints/PHI/51,114"  # Replace with your grid URL
+    scan_interval: 900  # 15 minutes
+    sensor:
+      - name: "NWS Gridded Forecast"
+        unique_id: nws_gridded_forecast
+        value_template: "{{ value_json.properties.updateTime }}"
+        json_attributes:
+          - windSpeed
+          - windDirection
+          - temperature
+        device_class: timestamp
+```
+
+**Finding Your Grid URL:**
+1. Go to https://api.weather.gov/points/{latitude},{longitude}
+2. Look for the "forecastGridData" property in the response
+3. Copy that URL and use it as your resource URL
+
+**Features:**
+- **Dashed forecast lines** distinguish forecast from historical data
+- **Present moment indicator** (red vertical line) separates past from future
+- **Automatic time extension** includes forecast period in chart timeline
+- **Interactive toggle** to show/hide forecast for comparison
 
 ## Wind Speed Units
 
