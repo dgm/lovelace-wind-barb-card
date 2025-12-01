@@ -1,8 +1,12 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, WindBarbCardConfig, WindData, LovelaceCard, TimeRangeConfig, TimePreset } from './types';
-import { HomeAssistantAPI } from './utils/ha-api';
+import { WindDataAPI } from './utils/ha-api';
+import { Logger } from './utils/logger';
 import './components/wind-barb-chart';
+
+// Enable debug logging
+Logger.setDebug(false);
 
 @customElement('wind-barb-card')
 export class WindBarbCard extends LitElement implements LovelaceCard {
@@ -17,7 +21,11 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
   // Debug toggle - set to true to enable debug logging
   private static readonly DEBUG = false;
 
-  private api?: HomeAssistantAPI;
+  private debug(...args: any[]): void {
+    Logger.debug('WindBarbCard', ...args);
+  }
+
+  private api?: WindDataAPI;
   private updateInterval?: number;
 
   static styles = css`
@@ -202,8 +210,8 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
     
     if (changedProperties.has('hass') && this.hass) {
       if (!this.api) {
-        this.api = new HomeAssistantAPI(this.hass);
-        this.fetchWindData();
+        this.api = new WindDataAPI(this.hass);
+        this.refreshData();
         this.startAutoUpdate();
       }
     }
@@ -216,7 +224,7 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
     }
   }
 
-  private async fetchWindData(): Promise<void> {
+  private async refreshData(): Promise<void> {
     if (!this.api || !this.config) return;
 
     this.loading = true;
@@ -226,11 +234,9 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
       // Store original time range - this should NEVER change
       const originalTimeRange = { ...this.config.time_range! };
       
-      if (WindBarbCard.DEBUG) {
-        console.log('=== FETCH WIND DATA START ===');
-        console.log('Original time range:', originalTimeRange);
-        console.log('Forecast enabled:', this.showForecast);
-      }
+      this.debug('=== FETCH WIND DATA START ===');
+      this.debug('Original time range:', originalTimeRange);
+      this.debug('Forecast enabled:', this.showForecast);
       
       // Fetch forecast data first
       let allForecastData: WindData[] = [];
@@ -253,36 +259,22 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
           end: extendedEnd.toISOString()
         };
         
-        if (WindBarbCard.DEBUG) {
-          console.log('Extended display range:', displayTimeRange);
-          console.log('Extension duration (hours):', forecastHours);
-        }
+        this.debug('Extended display range:', displayTimeRange);
+        this.debug('Extension duration (hours):', forecastHours);
       }
       
       // Fetch historical data using ORIGINAL time range
-      let historicalData: WindData[];
-      if (originalTimeRange) {
-        if (WindBarbCard.DEBUG) console.log('Fetching historical data with original range');
-        historicalData = await this.api.fetchWindDataWithTimeRange(
-          this.config.wind_direction_entity,
-          this.config.wind_speed_entity,
-          this.config.wind_gust_entity,
-          originalTimeRange
-        );
-      } else {
-        historicalData = await this.api.fetchWindData(
-          this.config.wind_direction_entity,
-          this.config.wind_speed_entity,
-          this.config.wind_gust_entity,
-          this.config.time_period || 24
-        );
-      }
+      this.debug('Fetching historical data with original range');
+      const historicalData = await this.api.fetchWindData(
+        this.config.wind_direction_entity,
+        this.config.wind_speed_entity,
+        this.config.wind_gust_entity,
+        originalTimeRange
+      );
       
-      if (WindBarbCard.DEBUG) {
-        console.log('Historical data points:', historicalData.length);
-        if (historicalData.length > 0) {
-          console.log('Historical range:', historicalData[0].timestamp, 'to', historicalData[historicalData.length - 1].timestamp);
-        }
+      this.debug('Historical data points:', historicalData.length);
+      if (historicalData.length > 0) {
+        this.debug('Historical range:', historicalData[0].timestamp, 'to', historicalData[historicalData.length - 1].timestamp);
       }
       
       // Filter forecast data to display window (already fetched above)
@@ -293,24 +285,20 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
         const displayStart = new Date(Date.now() - 2 * 60 * 60 * 1000); // Include last 2 hours
         const displayEnd = new Date(displayTimeRange.end);
         
-        if (WindBarbCard.DEBUG) {
-          console.log('All forecast data points:', allForecastData.length);
-          console.log('Display window:', displayStart, 'to', displayEnd);
-          if (allForecastData.length > 0) {
-            console.log('First forecast:', allForecastData[0].timestamp);
-            console.log('Last forecast:', allForecastData[allForecastData.length - 1].timestamp);
-          }
+        this.debug('All forecast data points:', allForecastData.length);
+        this.debug('Display window:', displayStart, 'to', displayEnd);
+        if (allForecastData.length > 0) {
+          this.debug('First forecast:', allForecastData[0].timestamp);
+          this.debug('Last forecast:', allForecastData[allForecastData.length - 1].timestamp);
         }
         
         forecastData = allForecastData.filter(d => 
           d.timestamp >= displayStart && d.timestamp <= displayEnd
         );
         
-        if (WindBarbCard.DEBUG) {
-          console.log('Filtered forecast data points:', forecastData.length);
-          if (forecastData.length > 0) {
-            console.log('Forecast range:', forecastData[0].timestamp, 'to', forecastData[forecastData.length - 1].timestamp);
-          }
+        this.debug('Filtered forecast data points:', forecastData.length);
+        if (forecastData.length > 0) {
+          this.debug('Forecast range:', forecastData[0].timestamp, 'to', forecastData[forecastData.length - 1].timestamp);
         }
       }
       
@@ -324,17 +312,15 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
         time_range: displayTimeRange
       };
       
-      if (WindBarbCard.DEBUG) {
-        console.log('Final wind data points:', this.windData.length);
-        console.log('=== FETCH WIND DATA END ===');
-      }
+      this.debug('Final wind data points:', this.windData.length);
+      this.debug('=== FETCH WIND DATA END ===');
       
       if (this.windData.length === 0) {
         this.error = 'No historical data available. Check entity names and history retention.';
       }
     } catch (err) {
       this.error = `Failed to fetch wind data: ${err}`;
-      if (WindBarbCard.DEBUG) console.error('Wind data fetch error:', err);
+      this.debug('Wind data fetch error:', err);
     } finally {
       this.loading = false;
     }
@@ -345,7 +331,7 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
   private startAutoUpdate(): void {
     // Update every 5 minutes
     this.updateInterval = window.setInterval(() => {
-      this.fetchWindData();
+      this.refreshData();
     }, 5 * 60 * 1000);
   }
 
@@ -372,7 +358,7 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
       }
     };
     
-    this.fetchWindData();
+    this.refreshData();
   }
 
   private renderTimePresets() {
@@ -409,7 +395,7 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
       }
     };
     
-    this.fetchWindData();
+    this.refreshData();
   }
 
   private handleForecastToggle(): void {
