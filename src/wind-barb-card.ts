@@ -1,8 +1,10 @@
-import { LitElement, html, css, PropertyValues } from 'lit';
+import { LitElement, html, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { HomeAssistant, WindBarbCardConfig, WindData, LovelaceCard, TimeRangeConfig, TimePreset } from './types';
 import { WindDataAPI } from './utils/ha-api';
 import { Logger } from './utils/logger';
+import { windBarbCardStyles } from './styles/wind-barb-card.styles';
+import { WindBarbCardTemplates } from './templates/wind-barb-card.templates';
 import './components/wind-barb-chart';
 
 // Enable debug logging
@@ -18,8 +20,7 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
   @state() private error?: string;
   @state() private showForecast = true;
 
-  // Debug toggle - set to true to enable debug logging
-  private static readonly DEBUG = false;
+
 
   private debug(...args: any[]): void {
     Logger.debug('WindBarbCard', ...args);
@@ -28,113 +29,7 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
   private api?: WindDataAPI;
   private updateInterval?: number;
 
-  static styles = css`
-    :host {
-      display: block;
-      border-radius: var(--ha-card-border-radius, 12px);
-      box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0,0,0,0.1));
-      padding: 16px;
-    }
-
-    .card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 16px;
-      font-size: 1.2em;
-      font-weight: 500;
-      color: var(--primary-text-color);
-    }
-
-    .chart-section {
-      margin-top: 16px;
-    }
-
-    .loading {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100px;
-      color: var(--secondary-text-color);
-    }
-
-    .loading-overlay {
-      position: absolute;
-      top: 0;
-      right: 0;
-      padding: 8px 12px;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      border-radius: 0 0 0 8px;
-      font-size: 0.8em;
-      z-index: 10;
-    }
-
-    .chart-container {
-      position: relative;
-    }
-
-    .error {
-      color: var(--error-color, #f44336);
-      text-align: center;
-      padding: 16px;
-      background: var(--error-color, #f44336)10;
-      border-radius: 4px;
-    }
-
-    .no-data {
-      text-align: center;
-      color: var(--secondary-text-color);
-      padding: 32px;
-    }
-
-    .time-presets {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-    }
-
-    .preset-button {
-      padding: 6px 12px;
-      border: 1px solid var(--divider-color);
-      border-radius: 4px;
-      background: var(--card-background-color);
-      color: var(--primary-text-color);
-      cursor: pointer;
-      font-size: 0.9em;
-      transition: all 0.2s;
-    }
-
-    .preset-button:hover {
-      background: var(--primary-color);
-      color: white;
-    }
-
-    .preset-button.active {
-      background: var(--primary-color);
-      color: white;
-      border-color: var(--primary-color);
-    }
-
-    .window-control {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 16px;
-      font-size: 0.9em;
-    }
-
-    .window-slider {
-      flex: 1;
-      max-width: 200px;
-    }
-
-    .window-label {
-      color: var(--secondary-text-color);
-      min-width: 80px;
-    }
-  `;
+  static styles = windBarbCardStyles;
 
   setConfig(config: WindBarbCardConfig): void {
     if (!config.wind_direction_entity || !config.wind_speed_entity) {
@@ -362,23 +257,15 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
   }
 
   private renderTimePresets() {
-    if (!this.config.show_time_presets) return '';
-    
     const presets = this.config.time_presets || this.getDefaultPresets();
     const currentStart = this.config.time_range?.start;
     
-    return html`
-      <div class="time-presets">
-        ${presets.map(preset => html`
-          <button 
-            class="preset-button ${currentStart === preset.start ? 'active' : ''}"
-            @click=${() => this.handlePresetClick(preset)}
-          >
-            ${preset.label}
-          </button>
-        `)}
-      </div>
-    `;
+    return WindBarbCardTemplates.renderTimePresets(
+      !!this.config.show_time_presets,
+      presets,
+      currentStart,
+      (preset) => this.handlePresetClick(preset)
+    );
   }
 
   private handleWindowSizeChange(event: Event): void {
@@ -411,64 +298,39 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
   }
 
   private renderForecastToggle() {
-    if (!this.config.forecast_entity) return '';
-    
-    return html`
-      <div class="time-presets">
-        <button 
-          class="preset-button ${this.showForecast ? 'active' : ''}"
-          @click=${this.handleForecastToggle}
-        >
-          Forecast ${this.showForecast ? 'ON' : 'OFF'}
-        </button>
-      </div>
-    `;
+    return WindBarbCardTemplates.renderForecastToggle(
+      !!this.config.forecast_entity,
+      this.showForecast,
+      () => this.handleForecastToggle()
+    );
   }
 
   private renderWindowControl() {
-    if (!this.config.show_window_control) return '';
-    
     const currentWindow = this.config.time_range?.window_size || '10min';
-    const minutes = parseInt(currentWindow.replace('min', ''));
     
-    return html`
-      <div class="window-control">
-        <span class="window-label">Smoothing: ${currentWindow}</span>
-        <input 
-          type="range" 
-          class="window-slider"
-          min="1" 
-          max="60" 
-          step="1"
-          .value=${minutes.toString()}
-          @input=${this.handleWindowSizeChange}
-        >
-      </div>
-    `;
+    return WindBarbCardTemplates.renderWindowControl(
+      !!this.config.show_window_control,
+      currentWindow,
+      (event) => this.handleWindowSizeChange(event)
+    );
   }
 
 
 
   render() {
     if (this.loading && !this.windData.length) {
-      return html`<div class="loading">Loading wind data...</div>`;
+      return WindBarbCardTemplates.renderLoadingState();
     }
 
     if (this.error && !this.windData.length) {
-      return html`<div class="error">${this.error}</div>`;
+      return WindBarbCardTemplates.renderErrorState(this.error);
     }
 
     if (!this.windData.length && !this.loading) {
-      return html`
-        <div class="no-data">
-          <div>No historical wind data available</div>
-          <div style="font-size: 0.8em; margin-top: 8px; color: var(--secondary-text-color);">
-            Check browser console for details. Current entities:
-            <br>Direction: ${this.config.wind_direction_entity}
-            <br>Speed: ${this.config.wind_speed_entity}
-          </div>
-        </div>
-      `;
+      return WindBarbCardTemplates.renderNoDataState(
+        this.config.wind_direction_entity,
+        this.config.wind_speed_entity
+      );
     }
 
     const cardStyle = this.config.theme?.background_color ? 
