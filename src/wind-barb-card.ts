@@ -135,16 +135,18 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
       
       // Fetch forecast data first
       let allForecastData: WindData[] = [];
-      if (this.config.forecast_entity) {
-        allForecastData = await this.api.fetchForecastData(
-          this.config.forecast_entity,
+      if (this.config.forecast_direction_entity && this.config.forecast_speed_entity) {
+        allForecastData = await this.api.fetchTimeSeriesForecast(
+          this.config.forecast_direction_entity,
+          this.config.forecast_speed_entity,
           this.config.forecast_hours || 48
         );
       }
       
       // Calculate display time range (extend to include available forecast)
       let displayTimeRange = originalTimeRange;
-      if (this.config.forecast_entity && this.showForecast && allForecastData.length > 0) {
+      const hasForecast = !!(this.config.forecast_direction_entity && this.config.forecast_speed_entity);
+      if (hasForecast && this.showForecast && allForecastData.length > 0) {
         // Extend to include first few hours of forecast
         const forecastHours = Math.min(6, this.config.forecast_hours || 48); // Max 6 hours
         const extendedEnd = new Date(Date.now() + (forecastHours * 60 * 60 * 1000));
@@ -174,7 +176,7 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
       
       // Filter forecast data to display window (already fetched above)
       let forecastData: WindData[] = [];
-      if (this.config.forecast_entity && allForecastData) {
+      if (hasForecast && allForecastData) {
         
         // Filter forecast to fit display window (include recent past data)
         const displayStart = new Date(Date.now() - 2 * 60 * 60 * 1000); // Include last 2 hours
@@ -298,8 +300,9 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
   }
 
   private renderForecastToggle() {
+    const hasForecast = !!(this.config.forecast_direction_entity && this.config.forecast_speed_entity);
     return WindBarbCardTemplates.renderForecastToggle(
-      !!this.config.forecast_entity,
+      hasForecast,
       this.showForecast,
       () => this.handleForecastToggle()
     );

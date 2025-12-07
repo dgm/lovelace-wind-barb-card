@@ -35,19 +35,29 @@ export class WindDataAPI {
     return WindDataProcessor.sampleWindData(rawData, timeRange, intervalMs, config);
   }
 
-  async fetchForecastData(forecastEntity: string, hours: number = 48): Promise<WindData[]> {
-    const entity = this.client.getEntityState(forecastEntity);
-    if (!entity) {
-      Logger.warn('WindDataAPI', 'Forecast entity not found:', forecastEntity);
+  async fetchTimeSeriesForecast(
+    directionEntity: string,
+    speedEntity: string,
+    hours: number = 48
+  ): Promise<WindData[]> {
+    const dirEntity = this.client.getEntityState(directionEntity);
+    const spdEntity = this.client.getEntityState(speedEntity);
+    
+    if (!dirEntity || !spdEntity) {
+      Logger.warn('WindDataAPI', 'Forecast entities not found');
       return [];
     }
 
-    if (entity.attributes.windSpeed?.values && entity.attributes.windDirection?.values) {
-      return WindDataProcessor.parseGriddedForecast(entity.attributes, hours);
+    if (!dirEntity.attributes?.values || !spdEntity.attributes?.values) {
+      Logger.warn('WindDataAPI', 'No time series values in forecast entities');
+      return [];
     }
 
-    Logger.warn('WindDataAPI', 'No gridded forecast data found in entity attributes');
-    return [];
+    return WindDataProcessor.parseTimeSeriesForecast(
+      dirEntity.attributes.values,
+      spdEntity.attributes.values,
+      hours
+    );
   }
 
 

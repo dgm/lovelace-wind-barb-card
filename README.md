@@ -50,7 +50,8 @@ name: "Interactive Wind Meteogram"
 wind_direction_entity: sensor.gw2000b_wind_direction
 wind_speed_entity: sensor.gw2000b_wind_speed
 wind_gust_entity: sensor.gw2000b_wind_gust
-forecast_entity: sensor.nws_gridded_forecast
+forecast_direction_entity: sensor.nws_wind_direction_id
+forecast_speed_entity: sensor.nws_wind_speed_id
 forecast_hours: 48
 show_time_presets: true
 show_window_control: true
@@ -87,7 +88,8 @@ time_period: 24  # Still supported
 | `wind_direction_entity` | string | **Required** | Entity ID for wind direction (degrees) |
 | `wind_speed_entity` | string | **Required** | Entity ID for wind speed |
 | `wind_gust_entity` | string | Optional | Entity ID for wind gusts |
-| `forecast_entity` | string | Optional | Entity ID for NWS gridded forecast data |
+| `forecast_direction_entity` | string | Optional | Entity ID for time series forecast direction |
+| `forecast_speed_entity` | string | Optional | Entity ID for time series forecast speed |
 | `forecast_hours` | number | 48 | Number of forecast hours to display |
 | `time_period` | number | 24 | Hours of historical data to display (legacy) |
 | `time_range` | object | See below | Advanced time control configuration |
@@ -253,31 +255,35 @@ theme:
   text_color: '#1b5e20'
 ```
 
-## NWS Forecast Integration
+## Forecast Integration
 
-To enable forecast data, create a REST sensor for NWS gridded forecast data:
+The card integrates with the [NWS Grid Data integration](https://github.com/dgm/nws_griddata) which exposes NWS forecast data as time series entities.
+
+### Installation
+
+1. Install the NWS Grid Data integration from https://github.com/dgm/nws_griddata
+2. Configure it with your GPS coordinates
+3. The integration will create time series entities for wind direction and speed
+
+### Configuration
 
 ```yaml
-rest:
-  - resource: "https://api.weather.gov/gridpoints/PHI/51,114"  # Replace with your grid URL
-    scan_interval: 900  # 15 minutes
-    sensor:
-      - name: "NWS Gridded Forecast"
-        unique_id: nws_gridded_forecast
-        value_template: "{{ value_json.properties.updateTime }}"
-        json_attributes:
-          - windSpeed
-          - windDirection
-          - temperature
-        device_class: timestamp
+type: custom:wind-barb-card
+name: "Wind Meteogram with Forecast"
+wind_direction_entity: sensor.wind_direction
+wind_speed_entity: sensor.wind_speed
+forecast_direction_entity: sensor.nws_wind_direction_id
+forecast_speed_entity: sensor.nws_wind_speed_id
+forecast_hours: 48
 ```
 
-**Finding Your Grid URL:**
-1. Go to https://api.weather.gov/points/{latitude},{longitude}
-2. Look for the "forecastGridData" property in the response
-3. Copy that URL and use it as your resource URL
+**Benefits:**
+- Automatically updates when NWS grid coordinates change (no manual REST sensor updates needed)
+- Direct integration with time series data
+- Reads forecast data from entity attributes
+- Handles variable-duration forecast periods (PT1H, PT3H, etc.)
 
-**Features:**
+### Forecast Features
 - **Dashed forecast lines** distinguish forecast from historical data
 - **Present moment indicator** (red vertical line) separates past from future
 - **Automatic time extension** includes forecast period in chart timeline

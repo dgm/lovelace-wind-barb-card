@@ -61,49 +61,48 @@ export class WindDataProcessor {
     return strategy.sample(data, timeRange, intervalMs, config);
   }
 
-  static parseGriddedForecast(properties: any, hours: number): WindData[] {
-    const windSpeedData = properties.windSpeed?.values || [];
-    const windDirData = properties.windDirection?.values || [];
+  static parseTimeSeriesForecast(
+    directionValues: any[],
+    speedValues: any[],
+    hours: number
+  ): WindData[] {
     const now = new Date();
+    const maxTime = new Date(now.getTime() + hours * 60 * 60 * 1000);
     const forecastData: WindData[] = [];
     
-    const maxEntries = Math.min(windSpeedData.length, windDirData.length);
+    const maxEntries = Math.min(directionValues.length, speedValues.length);
     
     for (let i = 0; i < maxEntries; i++) {
-      const speedEntry = windSpeedData[i];
-      const dirEntry = windDirData[i];
+      const dirEntry = directionValues[i];
+      const speedEntry = speedValues[i];
       
-      if (speedEntry?.validTime && dirEntry?.validTime && 
-          speedEntry.value !== null && dirEntry.value !== null) {
+      if (!dirEntry?.validTime || !speedEntry?.validTime) continue;
+      if (dirEntry.value === null || speedEntry.value === null) continue;
+      
+      const [startTimeStr, durationStr] = dirEntry.validTime.split('/');
+      const startTime = new Date(startTimeStr);
+      
+      let durationHours = 1;
+      if (durationStr) {
+        const match = durationStr.match(/PT(\d+)H/);
+        if (match) durationHours = parseInt(match[1]);
+      }
+      
+      for (let h = 0; h < durationHours; h++) {
+        const timestamp = new Date(startTime.getTime() + h * 60 * 60 * 1000);
         
-        const [startTimeStr, durationStr] = speedEntry.validTime.split('/');
-        const startTime = new Date(startTimeStr);
-        
-        let durationHours = 1;
-        if (durationStr) {
-          const match = durationStr.match(/PT(\d+)H/);
-          if (match) {
-            durationHours = parseInt(match[1]);
-          }
-        }
-        
-        for (let h = 0; h < durationHours; h++) {
-          const timestamp = new Date(startTime.getTime() + (h * 60 * 60 * 1000));
-          
-          if (timestamp > now) {
-            forecastData.push({
-              timestamp,
-              direction: dirEntry.value,
-              speed: speedEntry.value,
-              isForecast: true
-            });
-          }
+        if (timestamp > now && timestamp <= maxTime) {
+          forecastData.push({
+            timestamp,
+            direction: dirEntry.value,
+            speed: speedEntry.value,
+            isForecast: true
+          });
         }
       }
     }
     
-    forecastData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-    return forecastData.slice(0, hours);
+    return forecastData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
   }
 
   static aggregateWindData(data: WindData[], totalHours: number): WindData[] {
