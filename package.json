@@ -1,6 +1,6 @@
 {
   "name": "lovelace-wind-barb-card",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Home Assistant Lovelace card for displaying wind data as a meteogram with meteorological barbs on timeline",
   "main": "dist/wind-barb-card.js",

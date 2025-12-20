@@ -64,7 +64,8 @@ export class WindDataProcessor {
   static parseTimeSeriesForecast(
     directionValues: any[],
     speedValues: any[],
-    hours: number
+    gustValues?: any[],
+    hours: number = 48
   ): WindData[] {
     const now = new Date();
     const maxTime = new Date(now.getTime() + hours * 60 * 60 * 1000);
@@ -79,7 +80,10 @@ export class WindDataProcessor {
       if (!dirEntry?.validTime || !speedEntry?.validTime) continue;
       if (dirEntry.value === null || speedEntry.value === null) continue;
       
-      const [startTimeStr, durationStr] = dirEntry.validTime.split('/');
+      // Find matching gust entry by validTime
+      const gustEntry = gustValues?.find(g => g?.validTime === speedEntry.validTime);
+      
+      const [startTimeStr, durationStr] = speedEntry.validTime.split('/');
       const startTime = new Date(startTimeStr);
       
       let durationHours = 1;
@@ -88,14 +92,22 @@ export class WindDataProcessor {
         if (match) durationHours = parseInt(match[1]);
       }
       
+      // Convert speed from kph to m/s (NWS returns kph)
+      const speedMps = speedEntry.value / 3.6;
+      const gustMps = gustEntry?.value ? gustEntry.value / 3.6 : undefined;
+      
+      // Direction is already in degrees, no conversion needed
+      const direction = dirEntry.value;
+      
       for (let h = 0; h < durationHours; h++) {
         const timestamp = new Date(startTime.getTime() + h * 60 * 60 * 1000);
         
         if (timestamp > now && timestamp <= maxTime) {
           forecastData.push({
             timestamp,
-            direction: dirEntry.value,
-            speed: speedEntry.value,
+            direction,
+            speed: speedMps,
+            gust: gustMps,
             isForecast: true
           });
         }

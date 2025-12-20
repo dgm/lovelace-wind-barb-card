@@ -392,9 +392,9 @@ export class WindBarbChart extends LitElement {
     // Forecast speed data  
     const forecastSpeed = this.windData.map(d => d.isForecast ? d.speed : null);
     
-    // Gust data (only for historical)
+    // Gust data (both historical and forecast)
     const gustData = this.windData.map(d => {
-      if (!d.gust || d.isForecast) return null;
+      if (!d.gust) return null;
       
       const sustainedKnots = d.speed * 1.944;
       const gustKnots = d.gust * 1.944;

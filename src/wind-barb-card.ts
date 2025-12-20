@@ -20,6 +20,15 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
   @state() private error?: string;
   @state() private showForecast = true;
 
+  constructor() {
+    super();
+    console.log(
+      '%c🌪️ Wind Barb Card %cv0.1.1',
+      'color: #1976d2; font-weight: bold; font-size: 14px;',
+      'color: #666; font-size: 12px;'
+    );
+  }
+
 
 
   private debug(...args: any[]): void {
@@ -139,6 +148,7 @@ export class WindBarbCard extends LitElement implements LovelaceCard {
         allForecastData = await this.api.fetchTimeSeriesForecast(
           this.config.forecast_direction_entity,
           this.config.forecast_speed_entity,
+          this.config.forecast_gust_entity,
           this.config.forecast_hours || 48
         );
       }
